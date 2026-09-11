@@ -1,0 +1,71 @@
+# ============================================================
+#  .htaccess — Konfigurasi Security Apache
+#  Letakkan di root folder aplikasi kamu
+# ============================================================
+
+# ─── Sembunyikan ekstensi .php ──────────────────────────────
+# URL /kasir.php → bisa diakses sebagai /kasir
+Options -MultiViews
+RewriteEngine On
+
+# Jika file/folder ada, langsung serve
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Jika request tanpa ekstensi, coba tambah .php
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^\.]+)$ $1.php [L]
+
+# ─── Blokir akses langsung ke file sensitif ─────────────────
+# .env, database config, backup, dll.
+<FilesMatch "(^\.env|\.env\..*|database\.php|.*\.sql|.*\.log|.*\.bak|.*\.old|.*~)$">
+    Require all denied
+</FilesMatch>
+
+# Blokir akses ke folder includes, config, ajax langsung via browser
+# (hanya bisa dipanggil dari internal PHP)
+<IfModule mod_rewrite.c>
+    RewriteRule ^(includes|config|backup)/ - [F,L]
+</IfModule>
+
+# ─── Nonaktifkan directory listing ──────────────────────────
+Options -Indexes
+
+# ─── Security headers tambahan via Apache ───────────────────
+# (Sudah di-set via PHP juga, ini sebagai lapisan kedua)
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # Hapus header yang membocorkan info server
+    Header unset X-Powered-By
+    Header always unset Server
+</IfModule>
+
+# ─── Nonaktifkan PHP error display di production ────────────
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+</IfModule>
+
+# ─── Batasi ukuran upload & POST ────────────────────────────
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+    php_value max_execution_time 60
+</IfModule>
+
+# ─── Cegah hotlinking gambar ────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteCond %{HTTP_REFERER} !^$
+    RewriteCond %{HTTP_REFERER} !^https?://(www\.)?yourdomain\.com [NC]
+    RewriteRule \.(jpg|jpeg|png|gif|svg)$ - [F,L]
+</IfModule>
+
+# ─── Force HTTPS (aktifkan jika sudah pakai SSL) ────────────
+# <IfModule mod_rewrite.c>
+#     RewriteCond %{HTTPS} off
+#     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
